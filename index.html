@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+ <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+ <meta name="color-scheme" content="light"><meta name="theme-color" content="#f8faf7">
+ <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'nonce-cWluZ2ZlbmctcHVibGljLXN0eWxlLXYx'; connect-src 'self' https: http://127.0.0.1:* http://localhost:*; img-src 'self' data: blob:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+ <meta name="qf-style-nonce" content="cWluZ2ZlbmctcHVibGljLXN0eWxlLXYx">
+ <meta name="description" content="青风 Agent：从天气到资料，用清晰的文字、公式、表格和图表理清问题。">
+ <title>青风 Agent</title>
+ <link rel="icon" href="./assets/mark.svg" type="image/svg+xml">
+ <link rel="stylesheet" href="./assets/answer.css"><link rel="stylesheet" href="./assets/site.css">
+ <script defer src="./assets/vendor/dompurify-3.4.17/dist/purify.min.js"></script>
+ <script defer src="./assets/vendor/marked-18.1.1/lib/marked.umd.js"></script>
+ <script type="module" src="./assets/app.mjs"></script>
+</head>
+<body>
+ <a class="skip-link" href="#question">跳到输入框</a>
+ <aside class="rail" id="rail" aria-label="对话历史">
+  <a class="brand" href="./"><img src="./assets/mark.svg" width="36" height="36" alt=""><span>青风<small>AGENT WORKSPACE</small></span></a>
+  <button class="new-thread" id="new-thread" type="button"><span aria-hidden="true">＋</span> 新建对话 <kbd>⌘ / Ctrl K</kbd></button>
+  <label class="history-search"><span aria-hidden="true">⌕</span><input id="history-query" type="search" placeholder="搜索对话" aria-label="搜索历史对话" autocomplete="off"></label>
+  <div class="rail-caption">你的对话</div><nav id="history" class="history"><p class="history-empty">连接后，在这里继续之前的对话。</p></nav>
+  <div class="rail-foot"><span class="small-mark" aria-hidden="true">青</span><div>青风 Agent<small>让复杂的问题，变得清楚。</small></div><button id="settings" class="icon-button" type="button" aria-label="连接设置" title="连接设置">⚙</button></div>
+ </aside>
+ <button id="rail-shade" class="rail-shade" type="button" aria-label="关闭历史对话" hidden></button>
+ <main class="main">
+  <header class="topbar"><div class="topbar-left"><button id="rail-toggle" class="icon-button" type="button" aria-label="切换历史对话" aria-controls="rail" aria-expanded="true">☰</button><span id="thread-title" class="thread-title">新的对话</span></div><button id="connection" class="connection" type="button"><i aria-hidden="true"></i><span id="connection-label">连接青风</span></button></header>
+  <section id="reading-area" class="reading-area" aria-label="对话内容">
+   <div id="welcome" class="welcome"><div class="eyebrow"><span></span> 想法，从这里展开</div><h1>你好，我是青风<span>今天想理清什么？</span></h1><p>聊聊天气，读一份资料，或把思路变成看得懂的图。</p><div class="starters"><button data-prompt="西宁明天的天气怎么样？请给出温度和出行建议。"><span class="starter-icon">☀</span><strong>天气与出行</strong><small>看看天气，再安排一天</small><span class="starter-arrow">↗</span></button><button data-prompt="请帮我分析上传的资料，先给结论，再用必要的表格和图表解释。"><span class="starter-icon">▤</span><strong>资料与图表</strong><small>从文件中找到关键信息</small><span class="starter-arrow">↗</span></button><button data-prompt="解释空气抬升时温度和露点如何变化，必要时使用公式和流程图。"><span class="starter-icon">⌁</span><strong>解释与推导</strong><small>把原理和推理讲清楚</small><span class="starter-arrow">↗</span></button></div><p class="welcome-hint">支持 PDF、图片、Word、Excel 和 CSV</p></div>
+   <div id="conversation" class="conversation" aria-live="off"></div>
+  </section>
+  <div class="compose-region"><button id="jump-latest" class="jump-latest" type="button" hidden>↓ 回到最新</button><div id="notice" class="notice" role="status"></div><div id="pending-status" class="pending-status" hidden><span id="pending-label"></span><button id="resume-read" type="button">继续读取</button></div>
+   <form id="composer" class="composer"><div id="file-chips" class="file-chips"></div><label class="sr-only" for="question">向青风提问</label><textarea id="question" rows="2" maxlength="6000" placeholder="把问题交给青风…" enterkeyhint="enter"></textarea><div class="composer-row"><div class="composer-start"><button id="attach" class="attach-control" type="button" aria-label="添加文件或图片" title="每个文件最大5MB，每轮最多4个">＋<span>文件</span></button><input id="file-input" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv,.xlsx,.docx" multiple hidden><div class="mode-control" role="group" aria-label="回答模式"><button data-mode="fast" class="active" type="button" aria-pressed="true">ϟ 快速</button><button data-mode="deep" type="button" aria-pressed="false">✧ 深入</button></div><label class="validation-control"><span class="sr-only">核验偏好</span><select id="validation"><option value="auto">按题意核验</option><option value="ordinary">普通解答</option><option value="strict">严格核验</option></select></label></div><button id="send" class="send" type="submit" aria-label="发送问题" disabled>↑</button></div></form>
+   <div class="compose-note"><span>Enter 发送 · Shift + Enter 换行</span><span>重要结论请结合实际来源判断</span></div>
+  </div>
+ </main>
+ <dialog id="connection-dialog" class="connection-dialog"><form id="connection-form"><div class="dialog-header"><div class="dialog-brand"><img src="./assets/mark.svg" width="34" height="34" alt=""><span>连接你的青风</span></div><button id="close-connection" class="icon-button" type="button" aria-label="关闭设置">×</button></div><p class="dialog-intro">页面由 GitHub 托管，对话和文件直接由 HPC 处理。</p><label for="api-address">服务地址</label><input id="api-address" type="url" placeholder="https://111.115.201.25:18443" autocomplete="url" spellcheck="false" required><p id="certificate-help" class="field-help" hidden>首次在这台电脑使用，请先<a id="certificate-link" target="_blank" rel="noopener noreferrer">打开 HPC 接口</a>，由你完成浏览器证书确认后返回连接。</p><label for="access-code">私有访问码</label><input id="access-code" type="password" placeholder="输入你的访问码" autocomplete="off" spellcheck="false" required><p class="field-help">访问码仅保留在当前页面内存中，不写入 GitHub 或浏览器存储。</p><p id="connection-error" class="connection-error" role="alert"></p><div class="dialog-actions"><button id="disconnect" class="quiet-button" type="button">断开连接</button><button id="connect-submit" class="primary-button" type="submit">连接服务</button></div></form></dialog>
+ <noscript>青风需要启用 JavaScript 才能连接服务并展示回答。</noscript>
+</body></html>
