@@ -64,7 +64,7 @@ function renderDocument(container,document){
  const tasks=[];for(const block of document.blocks){const section=node('section',undefined,'answer-block');section.dataset.blockType=String(block.type||'markdown').slice(0,20);container.append(section);if(block.warning)section.append(node('p',String(block.warning).slice(0,200),'figure-note'));const body=node('div');section.append(body);tasks.push(render(body,block.source).catch(()=>{body.textContent=block.source;}));}
  return Promise.all(tasks).finally(()=>{if(container._revision===revision)container._mathPending=false;});
 }
-function tools(article,text){article.querySelector('.answer-actions')?.remove();const row=node('div',undefined,'answer-actions'),copyButton=action(text),toggle=node('button','查看原文');toggle.type='button';toggle.setAttribute('aria-pressed','false');let raw=false;toggle.addEventListener('click',()=>{raw=!raw;const box=article.querySelector('.chat-text');if(raw){box.classList.remove('answer-content');box._revision=(box._revision||0)+1;box.textContent=text;}else if(article._answerDocument?.raw_answer===text)renderDocument(box,article._answerDocument);else render(box,text);toggle.textContent=raw?'返回排版':'查看原文';toggle.setAttribute('aria-pressed',String(raw));});row.append(copyButton,toggle);article.append(row);}
+function tools(article,text){article.querySelector('.answer-actions')?.remove();const row=node('div',undefined,'answer-actions');row.append(action(text));article.append(row);}
 function present(article,text,options={}){
  const box=article.querySelector('.chat-text');article._typing?.finish();
  article._answerDocument=options.document?.raw_answer===text?options.document:null;

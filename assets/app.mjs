@@ -21,7 +21,7 @@ $('rail-shade').addEventListener('click',()=>setRail(false));window.addEventList
 document.addEventListener('keydown',event=>{if(event.key==='Escape')setRail(false);if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k'){event.preventDefault();newSession();}});
 function currentJob(){return state.pending.get(state.sid);}
 function refreshControls(){
- const running=!!currentJob(),locked=running||state.uploading||state.loading;
+ const running=!!currentJob(),locked=running||state.uploading||state.loading||state.deleting;
  $('send').disabled=!state.connected||!state.sid||locked||(!$('question').value.trim()&&!state.selected.length);
  $('attach').disabled=!state.connected||!state.sid||locked;$('new-thread').disabled=state.uploading;
  $('validation').disabled=locked;document.querySelectorAll('[data-mode]').forEach(b=>{b.classList.toggle('active',b.dataset.mode===state.mode);b.setAttribute('aria-pressed',String(b.dataset.mode===state.mode));b.disabled=locked;});
@@ -37,10 +37,25 @@ $('question').addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.
 function renderSessions(){
  const list=$('history');list.replaceChildren();const query=$('history-query').value.toLowerCase();let last='';
  for(const item of state.sessions.filter(r=>(r.title||'新对话').toLowerCase().includes(query))){const date=new Date((item.updated_at||item.created_at||0)*1000),now=new Date(),days=Math.floor((new Date(now.getFullYear(),now.getMonth(),now.getDate())-new Date(date.getFullYear(),date.getMonth(),date.getDate()))/86400000),group=days===0?'今天':days===1?'昨天':days<7?'最近七天':'更早';if(group!==last){list.append(make('h3',group,'history-group'));last=group;}
-  const b=make('button',item.title||'新对话','history-item'+(item.session_id===state.sid?' active':''));b.type='button';b.title=item.title||'新对话';b.disabled=state.uploading;b.addEventListener('click',()=>openSession(item.session_id).catch(e=>notice(e.message,true)));list.append(b);
+  const b=make('button',item.title||'新对话','history-item'+(item.session_id===state.sid?' active':''));b.type='button';b.title=item.title||'新对话';b.disabled=state.uploading;b.addEventListener('click',()=>openSession(item.session_id).catch(e=>notice(e.message,true)));const row=make('div',undefined,'history-row'),remove=make('button','×','history-delete');remove.type='button';remove.title='删除对话';remove.setAttribute('aria-label','删除对话：'+(item.title||'新对话'));remove.disabled=state.deleting||state.uploading||state.loading||item.busy||state.pending.has(item.session_id)||!api.health?.release?.contracts?.history_deletion;remove.addEventListener('click',()=>confirmDelete(item));row.append(b,remove);list.append(row);
  }
  if(!list.children.length)list.append(make('p',state.connected?'还没有对话，从一个问题开始。':'连接后，在这里继续之前的对话。','history-empty'));
 }
+
+let deleteCandidate=null;
+function confirmDelete(item){$('delete-error').textContent='';deleteCandidate=item;$('delete-title').textContent=item.title||'新对话';$('delete-dialog').showModal();}
+$('cancel-delete').addEventListener('click',()=>$('delete-dialog').close());
+$('confirm-delete').addEventListener('click',async()=>{
+ const item=deleteCandidate;if(!item||state.deleting)return;state.deleting=true;$('confirm-delete').disabled=true;refreshControls();renderSessions();
+ try{const result=await request('/chat/delete',{session_id:item.session_id,confirm:true});if(result.status!=='deleted'||!result.server_deleted)throw Error('服务器尚未确认删除完成。');
+ state.drafts.delete(item.session_id);const stored=JSON.parse(sessionStorage.getItem('qingfeng.pending.'+api.base)||'null');if(stored?.sid===item.session_id)sessionStorage.removeItem('qingfeng.pending.'+api.base);
+ if(state.sid===item.session_id){state.generation++;state.sid='';state.files=[];state.selected=[];$('question').value='';$('conversation').replaceChildren();$('welcome').hidden=false;localStorage.removeItem('qingfeng.session.'+api.base);renderFiles();}
+ const listing=await sessionList();if(!state.sid){const next=listing.sessions[0]?.session_id;if(next)await openSession(next);else await newSession();}
+ $('delete-dialog').close();notice('对话已从服务器删除。');
+ }catch(error){$('delete-error').textContent='删除尚未确认：'+error.message+' 可以再次确认；不会重新发送模型请求。';}
+ finally{state.deleting=false;$('confirm-delete').disabled=false;refreshControls();renderSessions();}
+});
+
 $('history-query').addEventListener('input',renderSessions);
 async function sessionList(){const result=await request('/chat/sessions',{});state.sessions=result.sessions||[];renderSessions();return result;}
 async function newSession(){
@@ -67,7 +82,7 @@ function extras(article,result,sid){
 }
 function answerFooter(article,result,job){
  article.querySelector('.answer-footer')?.remove();const footer=make('div',undefined,'answer-footer');
- if(job){for(const [format,title]of[['docx','导出 Word'],['xlsx','导出 Excel']]){const b=make('button',title);b.type='button';b.addEventListener('click',async()=>{b.disabled=true;try{const file=await request('/chat/export',{session_id:job.sid,job_id:job.id,format});if(typeof file.content_base64!=='string')throw Error('导出文件尚未就绪。');const bytes=Uint8Array.from(atob(file.content_base64),c=>c.charCodeAt(0)),url=URL.createObjectURL(new Blob([bytes]));const a=make('a');a.href=url;a.download='青风分析.'+format;a.click();setTimeout(()=>URL.revokeObjectURL(url),3000);}catch(e){notice(e.message,true);}finally{b.disabled=false;}});footer.append(b);}}
+
  const time=make('span',result.elapsed_seconds!=null?'本轮 '+Number(result.elapsed_seconds).toFixed(1)+' 秒':'','answer-time');footer.append(time);article.append(footer);
 }
 async function showAnswer(article,result,job,animate=true){
@@ -114,7 +129,7 @@ async function openSession(sid){
  let job=state.pending.get(sid);if(!job){const saved=JSON.parse(sessionStorage.getItem('qingfeng.pending.'+api.base)||'null');const id=history.active_job_id||(saved?.sid===sid?saved.id:null);if(id){job={id,sid,after:0,started:saved?.started||Date.now(),done:false};state.pending.set(sid,job);}}
  if(job&&!job.done){if(!job.article?.isConnected){job.article=addAssistant(state.mode);job.after=0;job.viewRevision=(job.viewRevision||0)+1;runState(job.article,job);}clearTimeout(job.timer);poll(job);}
  refreshControls();follow(true);
- }finally{if(generation===state.generation){state.loading=false;refreshControls();}}
+ }finally{if(generation===state.generation){state.loading=false;refreshControls();renderSessions();}}
 }
 function renderFiles(){const list=$('file-chips');list.replaceChildren();for(const id of state.selected){const file=state.files.find(f=>f.file_id===id);if(!file)continue;const chip=make('div',undefined,'file-chip'),name=make('span',file.name),remove=make('button','×');remove.type='button';remove.setAttribute('aria-label','移除 '+file.name);remove.disabled=state.uploading||!!currentJob();remove.addEventListener('click',()=>{state.selected=state.selected.filter(f=>f!==id);renderFiles();refreshControls();});chip.append(name,remove);list.append(chip);}for(const file of state.files.filter(f=>f.status==='uploading').slice(-4)){const b=make('button',file.name+' · 未传完 '+Math.round((file.received||0)/file.size*100)+'% · 重选文件续传','file-chip pending');b.type='button';b.addEventListener('click',()=>$('file-input').click());list.append(b);}}
 async function upload(files){
