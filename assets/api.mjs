@@ -3,7 +3,7 @@ const encoder=new TextEncoder();
 const clock=()=>performance.now(),round=value=>Math.round(Math.max(0,value)*1000)/1000;
 const id=value=>typeof value==='string'&&/^(?:[a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/.test(value)?value:null;
 const phases=new Set(['submit','accepted','first_public_delta_received','first_visible_answer','answer_received','presentation_complete','render_complete','render_degraded','submit_unconfirmed','read_interrupted','view_resumed']);
-const paths=new Set(['/chat/session','/chat/sessions','/chat/delete','/chat/send','/chat/poll','/chat/history','/chat/upload','/chat/files']);
+const paths=new Set(['/chat/session','/chat/sessions','/chat/delete','/chat/trim','/chat/send','/chat/poll','/chat/history','/chat/upload','/chat/files']);
 const reports=new Map();
 function remember(report){const key=report.trace_id||report.job_id;if(!key)return;for(const [prior,row] of reports)if(report.job_id&&row.job_id===report.job_id&&prior!==key)reports.delete(prior);reports.delete(key);reports.set(key,report);while(reports.size>32)reports.delete(reports.keys().next().value);}
 export class ClientTrace{

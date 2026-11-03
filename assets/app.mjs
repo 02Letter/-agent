@@ -1,8 +1,9 @@
 import './renderer.js';
 import './typing.js';
 import './upload.js';
-import {AgentAPI,APIError,ClientTrace,normalizeBase} from './api.mjs?v=20261103';
+import {AgentAPI,APIError,ClientTrace,normalizeBase} from './api.mjs?v=20261103-history-edit';
 import {DraftView} from './stream.mjs';
+import {HistoryEditor} from './history-edit.mjs?v=20261103';
 
 const $=id=>document.getElementById(id),api=new AgentAPI(),state={connected:false,sid:'',sessions:[],files:[],selected:[],mode:localStorage.getItem('qingfeng.mode')||'fast',uploading:false,pending:new Map(),generation:0,following:true,drafts:new Map()};
 if(!['fast','deep'].includes(state.mode))state.mode='fast';
@@ -12,6 +13,8 @@ const request=(path,data)=>api.request(path,data),area=$('reading-area');
 api.onTransport=row=>{for(const job of state.pending.values())if(job.trace&&((row.trace_id&&row.trace_id===job.request_id)||(row.job_id&&row.job_id===job.id))){job.trace.addTransport(row);break;}};
 const make=(tag,text,className)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(className)n.className=className;return n;};
 function notice(text='',error=false){$('notice').textContent=text;$('notice').classList.toggle('error',error);}
+const historyEditor=new HistoryEditor({request,canEdit:()=>state.connected&&!!state.sid&&!currentJob()&&!state.uploading&&!state.loading&&!state.deleting&&!!api.health?.release?.contracts?.history_edit,
+ setBusy:value=>{state.deleting=value;refreshControls();renderSessions();},onNotice:notice,onChanged:async sid=>{globalThis.QFPerformance?.forgetSession(sid);if(state.sid===sid){const top=area.scrollTop;await sessionList();await openSession(sid);area.scrollTop=Math.min(top,area.scrollHeight-area.clientHeight);}else await sessionList();}});
 function follow(force=false){if(force)state.following=true;if(state.following)area.scrollTop=area.scrollHeight;$('jump-latest').hidden=state.following;}
 area.addEventListener('scroll',()=>{state.following=area.scrollHeight-area.scrollTop-area.clientHeight<110;$('jump-latest').hidden=state.following;},{passive:true});
 $('jump-latest').addEventListener('click',()=>follow(true));
@@ -27,6 +30,7 @@ function refreshControls(){
  $('attach').disabled=!state.connected||!state.sid||locked;$('new-thread').disabled=state.uploading;
  $('validation').disabled=locked;document.querySelectorAll('[data-mode]').forEach(b=>{b.classList.toggle('active',b.dataset.mode===state.mode);b.setAttribute('aria-pressed',String(b.dataset.mode===state.mode));b.disabled=locked;});
  $('connection').classList.toggle('connected',state.connected);$('connection-label').textContent=state.connected?'已连接青风':'连接青风';
+ document.querySelectorAll('[data-trim]').forEach(button=>button.disabled=locked||!api.health?.release?.contracts?.history_edit);
 }
 function resizeInput(){const input=$('question');input.style.height='auto';input.style.height=Math.min(input.scrollHeight,190)+'px';refreshControls();}
 $('question').addEventListener('input',resizeInput);
@@ -112,7 +116,7 @@ async function poll(job){
  if(job.polling||job.done||!state.connected)return;job.polling=true;
  const viewRevision=job.viewRevision||0;
  try{const reply=await request('/chat/poll',{session_id:job.sid,job_id:job.id,after:job.after});if(job.done)return;if(!reply.done&&viewRevision!==(job.viewRevision||0)){job.timer=setTimeout(()=>poll(job),0);return;}applyEvents(job,reply.events||[]);job.failures=0;
-  if(reply.done){job.trace?.mark('answer_received');job.trace?.serverTrace(reply.result?.performance_trace||reply.performance_trace);job.done=true;state.pending.delete(job.sid);const stored=JSON.parse(sessionStorage.getItem('qingfeng.pending.'+api.base)||'null');if(stored?.id===job.id)sessionStorage.removeItem('qingfeng.pending.'+api.base);if(job.article?.isConnected)await showAnswer(job.article,reply.result||{},job);if(state.sid===job.sid){$('pending-status').hidden=true;refreshControls();notice();}sessionList().catch(()=>{});}
+  if(reply.done){job.trace?.mark('answer_received');job.trace?.serverTrace(reply.result?.performance_trace||reply.performance_trace);job.done=true;state.pending.delete(job.sid);const stored=JSON.parse(sessionStorage.getItem('qingfeng.pending.'+api.base)||'null');if(stored?.id===job.id)sessionStorage.removeItem('qingfeng.pending.'+api.base);if(job.article?.isConnected)await showAnswer(job.article,reply.result||{},job);if(state.sid===job.sid){$('pending-status').hidden=true;refreshControls();notice();request('/chat/history',{session_id:job.sid}).then(history=>{if(state.sid===job.sid)historyEditor.bind(history,job.sid,$('conversation'));}).catch(()=>{});}sessionList().catch(()=>{});}
   else job.timer=setTimeout(()=>poll(job),document.hidden?2500:800);
  }catch(error){job.trace?.mark('read_interrupted');job.failures=(job.failures||0)+1;job.stage='读取连接中断，后台请求未重发';if(state.sid===job.sid){$('pending-status').hidden=false;$('pending-label').textContent='读取中断；原任务和已收到的回答保留。';notice(error.message,true);}if(job.failures<=3)job.timer=setTimeout(()=>poll(job),Math.min(15000,1500*2**job.failures));}
  finally{job.polling=false;}
@@ -128,6 +132,7 @@ async function openSession(sid){
    const observer=new IntersectionObserver(entries=>{if(entries.some(x=>x.isIntersecting)){observer.disconnect();load();}},{root:area,rootMargin:'150px'});observer.observe(article);}
  }
  if(generation!==state.generation)return;
+ historyEditor.bind(history,sid,$('conversation'));
  try{const result=await request('/chat/files',{session_id:sid});if(generation===state.generation){state.files=result.files||[];renderFiles();}}catch(error){notice(error.message,true);}
  let job=state.pending.get(sid);if(!job){const saved=JSON.parse(sessionStorage.getItem('qingfeng.pending.'+api.base)||'null');const id=history.active_job_id||(saved?.sid===sid?saved.id:null);if(id){job={id,sid,after:0,started:saved?.started||Date.now(),done:false,trace:new ClientTrace(null,id,{origin:'view_resumed',sessionId:sid})};state.pending.set(sid,job);}}
  if(job&&!job.done){if(!job.article?.isConnected){job.article=addAssistant(state.mode);job.after=0;job.viewRevision=(job.viewRevision||0)+1;runState(job.article,job);}clearTimeout(job.timer);poll(job);}
