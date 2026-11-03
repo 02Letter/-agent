@@ -2,6 +2,14 @@
   "name": "青风 Agent",
   "apiBase": "https://111.115.201.25:18443",
   "connectionGuide": "self-signed-ip",
-  "expectedContracts": {"uploads": 2, "presentation": 2},
-  "repository": "02Letter/-agent"
+  "expectedContracts": {
+    "uploads": 2,
+    "presentation": 2
+  },
+  "repository": "02Letter/-agent",
+  "authentication": {
+    "type": "password-pbkdf2-sha256",
+    "salt": "bede57e38c26ca049fa607e70463222f",
+    "iterations": 600000
+  }
 }

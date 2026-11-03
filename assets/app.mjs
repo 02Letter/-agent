@@ -1,7 +1,7 @@
 import './renderer.js';
 import './typing.js';
 import './upload.js';
-import {AgentAPI,APIError,ClientTrace} from './api.mjs';
+import {AgentAPI,APIError,ClientTrace,normalizeBase} from './api.mjs?v=20261103';
 import {DraftView} from './stream.mjs';
 
 const $=id=>document.getElementById(id),api=new AgentAPI(),state={connected:false,sid:'',sessions:[],files:[],selected:[],mode:localStorage.getItem('qingfeng.mode')||'fast',uploading:false,pending:new Map(),generation:0,following:true,drafts:new Map()};
@@ -159,7 +159,7 @@ $('settings').addEventListener('click',showConnection);$('connection').addEventL
 $('disconnect').addEventListener('click',()=>{for(const job of state.pending.values()){clearTimeout(job.timer);job.article?._draft?.finish();clearInterval(job.article?._clock);}state.pending.clear();globalThis.QFPerformance?.clear();api.disconnect();state.connected=false;state.sid='';state.sessions=[];state.files=[];state.selected=[];state.generation++;$('conversation').replaceChildren();$('welcome').hidden=false;$('pending-status').hidden=true;$('access-code').value='';$('connection-dialog').close();renderSessions();renderFiles();refreshControls();notice('连接已断开，后台任务不会因此重发。');});
 $('connection-form').addEventListener('submit',async event=>{
  event.preventDefault();const button=$('connect-submit');button.disabled=true;button.textContent='正在连接';$('connection-error').textContent='';
- try{const code=$('access-code').value;const result=await api.connect($('api-address').value,code);$('access-code').value='';state.connected=true;localStorage.setItem('qingfeng.apiBase',api.base);state.sessions=result.sessions||[];$('connection-dialog').close();renderSessions();notice();const saved=localStorage.getItem('qingfeng.session.'+api.base),sid=state.sessions.find(s=>s.session_id===saved)?.session_id||result.current_session_id||state.sessions[0]?.session_id;if(sid)await openSession(sid);else await newSession();refreshControls();}
+ try{const password=$('access-code').value;$('access-code').value='';const base=$('api-address').value;const authentication=configuration.authentication&&normalizeBase(base)===normalizeBase(configuration.apiBase)?configuration.authentication:null;const result=await api.connect(base,password,authentication);state.connected=true;localStorage.setItem('qingfeng.apiBase',api.base);state.sessions=result.sessions||[];$('connection-dialog').close();renderSessions();notice();const saved=localStorage.getItem('qingfeng.session.'+api.base),sid=state.sessions.find(s=>s.session_id===saved)?.session_id||result.current_session_id||state.sessions[0]?.session_id;if(sid)await openSession(sid);else await newSession();refreshControls();}
  catch(error){state.connected=false;api.disconnect();$('connection-error').textContent=error.message;refreshControls();}
  finally{button.disabled=false;button.textContent='连接服务';}
 });

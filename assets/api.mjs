@@ -1,3 +1,4 @@
+import {signingKey} from './password.mjs?v=20261103';
 const encoder=new TextEncoder();
 const clock=()=>performance.now(),round=value=>Math.round(Math.max(0,value)*1000)/1000;
 const id=value=>typeof value==='string'&&/^(?:[a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/.test(value)?value:null;
@@ -38,13 +39,13 @@ export class AgentAPI{
    if(!response.ok)throw new APIError(data.message||'服务暂时无法完成请求。',response.status,data.status||'request_rejected');return data;
   }catch(error){if(error instanceof APIError)throw error;throw new APIError(error.name==='AbortError'?'连接等待超时；尚未确认的提交不会自动重发。':'未能连接服务。请检查 HTTPS 地址、网络和服务的跨域设置。');}finally{clearTimeout(timer);if(timing)timing.http_ms=round(clock()-started);}
  }
- async connect(base,code){
+ async connect(base,credential,authentication=null){
   this.disconnect();this.base=normalizeBase(base);
-  if(!/^[a-f0-9]{64}$/i.test(code.trim()))throw new APIError('请输入完整的64位私有访问码。');
+  let key;try{key=await signingKey(credential,authentication);}catch(error){throw new APIError(error.message);}
   this.health=await this.json('/api/chat/status');if(this.health.status!=='ready')throw new APIError('服务尚未就绪，请稍后连接。');
   this.release=this.health.release?.id||'';
-  this.key=await crypto.subtle.importKey('raw',encoder.encode(code.trim().toLowerCase()),{name:'HMAC',hash:'SHA-256'},false,['sign']);
-  try{return await this.request('/chat/sessions',{});}catch(error){this.disconnect();throw error;}
+  this.key=key;
+  try{return await this.request('/chat/sessions',{});}catch(error){this.disconnect();if(authentication&&error.status===401)throw new APIError('密码不正确，请重新输入。',401,'invalid_password');throw error;}
  }
  async request(path,data){
   if(!this.key)throw new APIError('请先连接服务。',401,'disconnected');
